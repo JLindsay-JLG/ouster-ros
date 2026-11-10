@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <ouster/lidar_scan.h>
+#include <algorithm>
 
 // prevent clang-format from altering the location of "ouster_ros/os_ros.h", the
 // header file needs to be the first include due to PCL_NO_PRECOMPILE flag
@@ -71,4 +72,26 @@ TEST_F(PointCloudComposeTest, MapLidarScanFields) {
         EXPECT_EQ(point::get<7>(pt), reflect(0, src_idx));
         EXPECT_EQ(point::get<8>(pt), near_ir(0, src_idx));
     }
+}
+
+TEST_F(PointCloudComposeTest, MissingOptionalFieldDefaultsToZero) {
+    const auto WIDTH = 5U;
+    const auto HEIGHT = 3U;
+    LidarScan source(WIDTH, HEIGHT, UDPProfileLidar::RNG19_RFL8_SIG16_NIR16);
+    auto field_types = source.field_types();
+    field_types.erase(
+        std::remove_if(field_types.begin(), field_types.end(), [](const auto& field) {
+            return field.name == ChanField::WINDOW;
+        }),
+        field_types.end());
+    LidarScan scan_without_window(source, field_types);
+
+    auto ls_tuple =
+        make_lidar_scan_tuple<0, Profile_RNG19_RFL8_SIG16_NIR16.size(),
+                              Profile_RNG19_RFL8_SIG16_NIR16>(scan_without_window);
+    Point_RNG19_RFL8_SIG16_NIR16 point;
+
+    copy_lidar_scan_fields_to_point<0>(point, ls_tuple, 0);
+
+    EXPECT_EQ(point.window, 0);
 }
